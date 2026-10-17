@@ -1,0 +1,50 @@
+<!doctype html>
+<html lang="en">
+<head>
+<meta charset="utf-8">
+<meta name="viewport" content="width=device-width, initial-scale=1">
+<meta name="referrer" content="no-referrer">
+<title>PadLink · Google Drive</title>
+<link rel="icon" href="../icon.png">
+<link rel="stylesheet" href="../style.css">
+<style>
+  .pick { text-align: center; padding: 34px 22px; }
+  .pick h1 { font-size: 24px; }
+  .pick .button { margin-top: 10px; min-width: 260px; }
+  #where { font-size: 14px; margin-top: 18px; }
+  #msg { margin-top: 16px; }
+  #msg.warn { color: var(--warn); }
+  .done { display: none; }
+  body.is-done .pick-start { display: none; }
+  body.is-done .done { display: block; }
+</style>
+</head>
+<body>
+<main>
+  <header class="site"><img src="../icon.png" alt=""><a href="../">PadLink</a></header>
+
+  <div class="card pick">
+    <div class="pick-start">
+      <h1>Add from Google Drive</h1>
+      <p class="muted">Pick a file for your whiteboard. PadLink only gets that one file.</p>
+      <button class="button" id="open" disabled>
+        <svg viewBox="0 0 87.3 78" aria-hidden="true"><path d="m6.6 66.85 3.85 6.65c.8 1.4 1.95 2.5 3.3 3.3l13.75-23.8h-27.5c0 1.55.4 3.1 1.2 4.5z" fill="#0066da"/><path d="m43.65 25-13.75-23.8c-1.35.8-2.5 1.9-3.3 3.3l-25.4 44a9.06 9.06 0 0 0 -1.2 4.5h27.5z" fill="#00ac47"/><path d="m73.55 76.8c1.35-.8 2.5-1.9 3.3-3.3l1.6-2.75 7.65-13.25c.8-1.4 1.2-2.95 1.2-4.5h-27.502l5.852 11.5z" fill="#ea4335"/><path d="m43.65 25 13.75-23.8c-1.35-.8-2.9-1.2-4.5-1.2h-18.5c-1.6 0-3.15.45-4.5 1.2z" fill="#00832d"/><path d="m59.8 53h-32.3l-13.75 23.8c1.35.8 2.9 1.2 4.5 1.2h50.8c1.6 0 3.15-.45 4.5-1.2z" fill="#2684fc"/><path d="m73.4 26.5-12.7-22c-.8-1.4-1.95-2.5-3.3-3.3l-13.75 23.8 16.15 28h27.45c0-1.55-.4-3.1-1.2-4.5z" fill="#ffba00"/></svg>
+        <span>Choose from Google Drive</span>
+      </button>
+      <p id="msg" class="muted" hidden></p>
+      <p id="where" class="muted"></p>
+    </div>
+    <div class="done">
+      <h1>Sending it to PadLink…</h1>
+    </div>
+  </div>
+
+  <footer class="site"><a href="../">About PadLink</a> · <a href="../privacy.html">Privacy policy</a></footer>
+</main>
+
+<script src="config.js"></script>
+<script src="picker.js"></script>
+<script src="https://accounts.google.com/gsi/client" async onload="PadLinkPicker.gisLoaded()"></script>
+<script src="https://apis.google.com/js/api.js" async onload="PadLinkPicker.gapiLoaded()"></script>
+</body>
+</html>
