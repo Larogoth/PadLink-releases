@@ -21,8 +21,22 @@ window.PadLinkPicker = (() => {
   const $ = (id) => document.getElementById(id);
   let gis = false, picker = false, tokenClient = null, token = null, tokenUntil = 0;
 
+  // On an iPad or iPhone, Google's picker inside this page needs double taps and its Select button can do nothing, so
+  // there Google's own full-page picker is used instead ("onepick"): sign in, pick, and Google sends the browser back
+  // to this page with a pass and the file picked. Where PadLink was and its code go along in `state`.
+  const ONEPICK = /iPad|iPhone|iPod|Android/.test(navigator.userAgent)
+    || (navigator.maxTouchPoints > 1 && /Macintosh/.test(navigator.userAgent))
+    || new URLSearchParams(location.search).get('onepick') === '1';
+  const SELF = location.origin + location.pathname;
+  const fromGoogle = (() => {
+    const all = new URLSearchParams(location.search);
+    new URLSearchParams(location.hash.slice(1)).forEach((v, k) => all.set(k, v));
+    return all.has('state') && (all.has('access_token') || all.has('error') || all.has('picked_file_ids') || all.has('code')) ? all : null;
+  })();
+  if (fromGoogle) history.replaceState(null, '', location.pathname); // the pass shouldn't stay in the address
+
   // Where to go back to: only a PadLink address (…/drive/return), with a code PadLink made.
-  const args = new URLSearchParams(location.search);
+  const args = fromGoogle ? new URLSearchParams(fromGoogle.get('state') || '') : new URLSearchParams(location.search);
   const back = (() => {
     try {
       const u = new URL(args.get('r') || '');
@@ -46,6 +60,7 @@ window.PadLinkPicker = (() => {
     }
     $('where').textContent = `Your file goes to PadLink at ${back.host}.`;
     if (!cfg.clientId || !cfg.apiKey || !cfg.appId) { say('Google Drive isn’t set up for PadLink yet.', true); return; }
+    if (ONEPICK) { $('open').disabled = false; $('switch').hidden = false; return; }
     if (!gis || !picker) return; // still loading Google's parts
     tokenClient = google.accounts.oauth2.initTokenClient({
       client_id: cfg.clientId,
@@ -72,6 +87,7 @@ window.PadLinkPicker = (() => {
   // A tap is needed: browsers only open Google's sign-in window from one.
   function open() {
     say('');
+    if (ONEPICK) { onePick('consent'); return; }
     if (token && Date.now() < tokenUntil) { show(); return; }
     tokenClient.requestAccessToken({ prompt: '' });
   }
@@ -81,6 +97,7 @@ window.PadLinkPicker = (() => {
   function switchAccount() {
     say('');
     token = null; tokenUntil = 0;
+    if (ONEPICK) { onePick('select_account consent'); return; }
     tokenClient.requestAccessToken({ prompt: 'select_account' });
   }
 
@@ -106,17 +123,50 @@ window.PadLinkPicker = (() => {
       .setVisible(true);
   }
 
-  function picked(data) {
-    const P = google.picker;
-    const action = data[P.Response.ACTION];
-    if (action === P.Action.CANCEL) { say('Nothing picked. Tap the button to look again, or use a different Google account.'); return; }
-    if (action !== P.Action.PICKED) return;
-    const doc = data[P.Response.DOCUMENTS][0];
+  // Google's full-page picker (iPad, iPhone): off to Google, back to this page (finishOnePick).
+  function onePick(prompt) {
+    const q = new URLSearchParams({
+      client_id: cfg.clientId,
+      scope: SCOPE,
+      redirect_uri: SELF,
+      response_type: 'token',
+      prompt,
+      trigger_onepick: 'true',
+      mimetypes: MIMES,
+      include_granted_scopes: 'false',
+      state: new URLSearchParams({ r: back.href, c: code }).toString(),
+    });
+    (window.__pickerGo || ((u) => location.assign(u)))('https://accounts.google.com/o/oauth2/v2/auth?' + q.toString());
+  }
+
+  async function finishOnePick() {
+    const g = fromGoogle;
+    if (g.get('error')) {
+      say(g.get('error') === 'access_denied' ? 'Nothing picked. Tap the button to look again, or use a different Google account.' : signInProblem(g.get('error')), g.get('error') !== 'access_denied');
+      return;
+    }
+    const id = (g.get('picked_file_ids') || '').split(',').filter(Boolean)[0];
+    token = g.get('access_token') || '';
+    tokenUntil = Date.now() + (Number(g.get('expires_in')) || 3600) * 1000 - 60000;
+    if (!id || !token) { say('Nothing picked. Tap the button to look again, or use a different Google account.'); return; }
+    say('Getting the file’s details…');
+    try {
+      const api = window.__driveApi || 'https://www.googleapis.com/drive/v3/files';
+      const res = await fetch(`${api}/${encodeURIComponent(id)}?fields=id,name,mimeType&supportsAllDrives=true`, { headers: { Authorization: 'Bearer ' + token } });
+      if (!res.ok) throw new Error('http-' + res.status);
+      const f = await res.json();
+      send(f.id || id, f.name, f.mimeType);
+    } catch {
+      say('Google didn’t say what that file is. Tap the button to try again.', true);
+    }
+  }
+
+  function send(id, name, mime) {
     const reply = new URLSearchParams({
       c: code,
-      id: doc[P.Document.ID],
-      name: doc[P.Document.NAME] || 'Drive file',
-      mime: doc[P.Document.MIME_TYPE] || '',
+      id,
+      name: name || 'Drive file',
+      mime: mime || '',
       token,
       exp: String(Math.round(tokenUntil / 1000)),
     });
@@ -125,9 +175,19 @@ window.PadLinkPicker = (() => {
     (window.__pickerGo || ((u) => location.replace(u)))(back.href + '#' + reply.toString());
   }
 
+  function picked(data) {
+    const P = google.picker;
+    const action = data[P.Response.ACTION];
+    if (action === P.Action.CANCEL) { say('Nothing picked. Tap the button to look again, or use a different Google account.'); return; }
+    if (action !== P.Action.PICKED) return;
+    const doc = data[P.Response.DOCUMENTS][0];
+    send(doc[P.Document.ID], doc[P.Document.NAME], doc[P.Document.MIME_TYPE]);
+  }
+
   $('open').addEventListener('click', open);
   $('switch').addEventListener('click', switchAccount);
   ready();
+  if (fromGoogle && back && code) finishOnePick();
 
   return {
     gisLoaded() { gis = true; ready(); },
