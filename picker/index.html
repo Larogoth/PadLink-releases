@@ -15,6 +15,8 @@
   #where { font-size: 14px; margin-top: 18px; }
   #msg { margin-top: 16px; }
   #msg.warn { color: var(--warn); }
+  .link { border: 0; background: none; padding: 6px; color: var(--blue); font: inherit; font-size: 15px; text-decoration: underline; cursor: pointer; }
+  .link[hidden] { display: none; }
   .done { display: none; }
   body.is-done .pick-start { display: none; }
   body.is-done .done { display: block; }
@@ -33,6 +35,7 @@
         <span>Choose from Google Drive</span>
       </button>
       <p id="msg" class="muted" hidden></p>
+      <p><button class="link" id="switch" hidden>Use a different Google account</button></p>
       <p id="where" class="muted"></p>
     </div>
     <div class="done">

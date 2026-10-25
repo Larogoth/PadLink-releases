@@ -61,6 +61,7 @@ window.PadLinkPicker = (() => {
         : 'Google sign-in didn’t finish. Try again.', true),
     });
     $('open').disabled = false;
+    $('switch').hidden = false;
   }
 
   function signInProblem(error) {
@@ -73,6 +74,14 @@ window.PadLinkPicker = (() => {
     say('');
     if (token && Date.now() < tokenUntil) { show(); return; }
     tokenClient.requestAccessToken({ prompt: '' });
+  }
+
+  // Signed in with the wrong account (say, a personal one instead of the school's): forget this page's pass and ask
+  // Google to show its account list, where another account can be chosen or added. Nothing is signed out of Google.
+  function switchAccount() {
+    say('');
+    token = null; tokenUntil = 0;
+    tokenClient.requestAccessToken({ prompt: 'select_account' });
   }
 
   function show() {
@@ -100,7 +109,7 @@ window.PadLinkPicker = (() => {
   function picked(data) {
     const P = google.picker;
     const action = data[P.Response.ACTION];
-    if (action === P.Action.CANCEL) { say('Nothing picked. Tap the button to look again, or close this tab.'); return; }
+    if (action === P.Action.CANCEL) { say('Nothing picked. Tap the button to look again, or use a different Google account.'); return; }
     if (action !== P.Action.PICKED) return;
     const doc = data[P.Response.DOCUMENTS][0];
     const reply = new URLSearchParams({
@@ -117,6 +126,7 @@ window.PadLinkPicker = (() => {
   }
 
   $('open').addEventListener('click', open);
+  $('switch').addEventListener('click', switchAccount);
   ready();
 
   return {
