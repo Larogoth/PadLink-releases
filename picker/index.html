@@ -45,6 +45,22 @@
   .account { margin: 14px 0 0; font-size: 15px; color: var(--muted); overflow-wrap: anywhere; }
   .account[hidden] { display: none; }
   .account b { color: var(--ink); font-weight: 600; }
+  /* With the list: account, then the new-file button, then the list, so nothing hides under the phone's toolbars */
+  body.has-files .pick-start { display: flex; flex-direction: column; align-items: center; }
+  body.has-files .pick-start > h1 { order: 0; margin-bottom: 4px; }
+  body.has-files #account { order: 1; margin-top: 0; }
+  body.has-files .switch-row { order: 2; margin: 0; }
+  body.has-files #open { order: 3; }
+  body.has-files #msg { order: 4; }
+  body.has-files .list-box { order: 5; align-self: stretch; margin-top: 14px; }
+  body.has-files #where { order: 6; }
+  @media (max-width: 600px) {
+    body.has-files .pick { padding: 20px 14px; }
+    body.has-files .pick-start > h1 { font-size: 21px; }
+    body.has-files #open { min-width: 0; width: 100%; font-size: 16px; padding-left: 12px; padding-right: 12px; }
+    #files { max-height: none; overflow: visible; } /* the page scrolls, not a box inside it */
+    .tools select { flex: none; }
+  }
 </style>
 </head>
 <body>
@@ -57,8 +73,8 @@
       <p class="muted intro">Pick a file for your whiteboard. PadLink only gets that one file.</p>
       <div class="list-box">
         <div class="tools">
-          <input id="find" type="search" placeholder="Search your PadLink files" autocomplete="off" spellcheck="false">
-          <select id="sort" aria-label="Sort"><option value="recent">Recently opened</option><option value="name">Name A–Z</option></select>
+          <input id="find" type="search" placeholder="Search your files" autocomplete="off" spellcheck="false">
+          <select id="sort" aria-label="Sort"><option value="recent">Recent</option><option value="name">Name A–Z</option></select>
         </div>
         <div id="chips"></div>
         <p id="count" class="muted"></p>
@@ -70,7 +86,7 @@
       </button>
       <p id="account" class="account" hidden>Google account: <b id="accountEmail"></b></p>
       <p id="msg" class="muted" hidden></p>
-      <p><button class="link" id="switch" hidden>Use a different Google account</button></p>
+      <p class="switch-row"><button class="link" id="switch" hidden>Use a different Google account</button></p>
       <p id="where" class="muted"></p>
     </div>
     <div class="done">
