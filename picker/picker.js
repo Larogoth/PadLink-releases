@@ -60,6 +60,142 @@ window.PadLinkPicker = (() => {
   })();
   const code = /^[A-Za-z0-9_-]{16,64}$/.test(args.get('c') || '') ? args.get('c') : null;
 
+  // ---- Your Drive files: every file already used with PadLink, to open again with no Google screens ----
+  // Google lets PadLink see only those files (drive.file), so the list is exactly "files you've used with PadLink".
+  const KINDS = [
+    ['pdf', 'PDFs', (m) => m === 'application/pdf'],
+    ['slides', 'Slides', (m) => m === 'application/vnd.google-apps.presentation'],
+    ['docs', 'Docs', (m) => m === 'application/vnd.google-apps.document'],
+    ['sheets', 'Sheets', (m) => m === 'application/vnd.google-apps.spreadsheet'],
+    ['drawings', 'Drawings', (m) => m === 'application/vnd.google-apps.drawing'],
+    ['pictures', 'Pictures', (m) => m.startsWith('image/')],
+  ];
+  const kindOf = (m) => (KINDS.find(([, , test]) => test(m || '')) || ['other'])[0];
+  const BADGE = { pdf: 'PDF', slides: 'SLIDES', docs: 'DOC', sheets: 'SHEET', drawings: 'DRAW', pictures: 'IMG', other: 'FILE' };
+  let files = [], filter = 'all';
+
+  // Off to Google and straight back, with no screens when this account already allowed PadLink (prompt=none).
+  function quietSignIn(hint) {
+    const q = new URLSearchParams({
+      client_id: cfg.clientId,
+      scope: SCOPE,
+      redirect_uri: SELF,
+      response_type: 'token',
+      prompt: 'none',
+      login_hint: hint,
+      include_granted_scopes: 'false',
+      state: new URLSearchParams({ r: back.href, c: code, m: 'list' }).toString(),
+    });
+    say('Looking for your Drive files…');
+    (window.__pickerGo || ((u) => location.replace(u)))('https://accounts.google.com/o/oauth2/v2/auth?' + q.toString());
+  }
+
+  async function finishList() {
+    const g = fromGoogle;
+    if (g.get('error') || !g.get('access_token')) { say(''); return; } // not signed in, or Google wants a tap: the usual start
+    token = g.get('access_token');
+    tokenUntil = Date.now() + (Number(g.get('expires_in')) || 3600) * 1000 - 60000;
+    say('Looking for your Drive files…');
+    try {
+      const api = window.__driveApi || 'https://www.googleapis.com/drive/v3/files';
+      const kinds = MIMES.split(',').filter((m) => !m.startsWith('image/')).map((m) => `mimeType='${m}'`).concat(["mimeType contains 'image/'"]);
+      const all = [];
+      let page = '';
+      for (let i = 0; i < 10; i++) {
+        const q = new URLSearchParams({
+          q: `trashed=false and (${kinds.join(' or ')})`,
+          fields: 'nextPageToken,files(id,name,mimeType,viewedByMeTime,modifiedTime)',
+          pageSize: '1000', corpora: 'allDrives', includeItemsFromAllDrives: 'true', supportsAllDrives: 'true',
+        });
+        if (page) q.set('pageToken', page);
+        const res = await fetch(`${api}?${q}`, { headers: { Authorization: 'Bearer ' + token } });
+        if (!res.ok) throw new Error('http-' + res.status);
+        const j = await res.json();
+        all.push(...(j.files || []));
+        page = j.nextPageToken || '';
+        if (!page) break;
+      }
+      files = all.map((f) => ({ ...f, kind: kindOf(f.mimeType), when: f.viewedByMeTime || f.modifiedTime || '' }));
+      say('');
+      if (files.length) showList();
+    } catch {
+      say(''); // the list is a shortcut: without it, the button still works
+    }
+  }
+
+  function when(f) {
+    if (!f.when) return '';
+    const d = new Date(f.when), now = new Date();
+    const days = Math.round((new Date(now.toDateString()) - new Date(d.toDateString())) / 86400000);
+    const label = f.viewedByMeTime ? 'Opened' : 'Changed';
+    if (days <= 0) return label + ' today';
+    if (days === 1) return label + ' yesterday';
+    return label + ' ' + d.toLocaleDateString(undefined, { month: 'short', day: 'numeric', year: d.getFullYear() === now.getFullYear() ? undefined : 'numeric' });
+  }
+
+  function showList() {
+    document.body.classList.add('has-files');
+    $('openLabel').textContent = 'Find a new file in Google Drive';
+    const counts = {};
+    for (const f of files) counts[f.kind] = (counts[f.kind] || 0) + 1;
+    const chips = $('chips');
+    chips.textContent = '';
+    for (const [k, label] of [['all', 'All'], ...KINDS]) {
+      const n = k === 'all' ? files.length : counts[k];
+      if (!n) continue; // only the kinds this teacher has
+      const b = document.createElement('button');
+      b.type = 'button';
+      b.className = 'chip' + (k === filter ? ' on' : '');
+      b.dataset.kind = k;
+      b.append(label + ' ');
+      const i = document.createElement('i');
+      i.textContent = String(n);
+      b.append(i);
+      b.addEventListener('click', () => { filter = k; showList(); });
+      chips.append(b);
+    }
+    renderList();
+  }
+
+  function renderList() {
+    const words = $('find').value.trim().toLowerCase().split(/\s+/).filter(Boolean);
+    const byName = $('sort').value === 'name';
+    const shown = files
+      .filter((f) => filter === 'all' || f.kind === filter)
+      .filter((f) => words.every((w) => (f.name || '').toLowerCase().includes(w)))
+      .sort(byName ? (a, b) => (a.name || '').localeCompare(b.name || '', undefined, { numeric: true, sensitivity: 'base' })
+        : (a, b) => (b.when || '').localeCompare(a.when || ''));
+    $('count').textContent = shown.length === files.length
+      ? `${files.length} file${files.length === 1 ? '' : 's'} you've used with PadLink · tap one to add it`
+      : `${shown.length} of ${files.length} files`;
+    const list = $('files');
+    list.textContent = '';
+    for (const f of shown) {
+      const b = document.createElement('button');
+      b.type = 'button';
+      b.className = 'file';
+      const badge = document.createElement('span');
+      badge.className = 'badge k-' + f.kind;
+      badge.textContent = BADGE[f.kind];
+      const text = document.createElement('span');
+      text.className = 'text';
+      const name = document.createElement('b');
+      name.textContent = f.name || 'Untitled';
+      const sub = document.createElement('small');
+      sub.textContent = when(f);
+      text.append(name, sub);
+      b.append(badge, text);
+      b.addEventListener('click', () => send(f.id, f.name, f.mimeType));
+      list.append(b);
+    }
+    if (!shown.length) {
+      const none = document.createElement('p');
+      none.className = 'muted none';
+      none.textContent = 'No files match. Try other words, or find a new file below.';
+      list.append(none);
+    }
+  }
+
   function say(text, warn) {
     const m = $('msg');
     m.hidden = !text;
@@ -115,6 +251,8 @@ window.PadLinkPicker = (() => {
     say('');
     token = null; tokenUntil = 0;
     forgetAccount();
+    files = [];
+    document.body.classList.remove('has-files');
     if (ONEPICK) { onePick('select_account consent'); return; }
     tokenClient.requestAccessToken({ prompt: 'select_account' });
   }
@@ -208,8 +346,11 @@ window.PadLinkPicker = (() => {
 
   $('open').addEventListener('click', open);
   $('switch').addEventListener('click', switchAccount);
+  $('find').addEventListener('input', renderList);
+  $('sort').addEventListener('change', renderList);
   ready();
-  if (fromGoogle && back && code) finishOnePick();
+  if (fromGoogle && back && code) { if (args.get('m') === 'list') finishList(); else finishOnePick(); }
+  else if (back && code && cfg.clientId && savedAccount()) quietSignIn(savedAccount());
 
   return {
     gisLoaded() { gis = true; ready(); },
