@@ -31,8 +31,16 @@ window.PadLinkPicker = (() => {
       const api = (window.__driveApi || 'https://www.googleapis.com/drive/v3/files').replace(/\/files$/, '/about');
       const res = await fetch(`${api}?fields=user(emailAddress)`, { headers: { Authorization: 'Bearer ' + pass } });
       const email = res.ok ? ((await res.json()).user || {}).emailAddress : '';
-      if (email) localStorage.setItem(ACCOUNT, email);
+      if (email) { localStorage.setItem(ACCOUNT, email); showAccount(); }
     } catch { /* fine: Google just asks which account next time */ }
+  }
+
+  // Which Google account the page will use, before anything is tapped (the one remembered from last time).
+  function showAccount() {
+    const a = savedAccount(), el = $('account');
+    if (!el) return;
+    el.hidden = !a;
+    $('accountEmail').textContent = a;
   }
 
   // On an iPad or iPhone, Google's picker inside this page needs double taps and its Select button can do nothing, so
@@ -251,6 +259,7 @@ window.PadLinkPicker = (() => {
     say('');
     token = null; tokenUntil = 0;
     forgetAccount();
+    showAccount();
     files = [];
     document.body.classList.remove('has-files');
     if (ONEPICK) { onePick('select_account consent'); return; }
@@ -349,8 +358,9 @@ window.PadLinkPicker = (() => {
   $('find').addEventListener('input', renderList);
   $('sort').addEventListener('change', renderList);
   ready();
+  showAccount();
   if (fromGoogle && back && code) { if (args.get('m') === 'list') finishList(); else finishOnePick(); }
-  else if (back && code && cfg.clientId && savedAccount()) quietSignIn(savedAccount());
+  else if (ONEPICK && back && code && cfg.clientId && savedAccount()) quietSignIn(savedAccount()); // (on the PC Google's picker opens straight away)
 
   return {
     gisLoaded() { gis = true; ready(); },
