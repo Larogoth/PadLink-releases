@@ -21,6 +21,20 @@ window.PadLinkPicker = (() => {
   const $ = (id) => document.getElementById(id);
   let gis = false, picker = false, tokenClient = null, token = null, tokenUntil = 0;
 
+  // The Google account last used here, kept only in this browser, so Google goes straight to it instead of asking
+  // which account every time. "Use a different Google account" forgets it.
+  const ACCOUNT = 'padlink-picker.account';
+  const savedAccount = () => { try { return localStorage.getItem(ACCOUNT) || ''; } catch { return ''; } };
+  const forgetAccount = () => { try { localStorage.removeItem(ACCOUNT); } catch { /* storage unavailable */ } };
+  async function rememberAccount(pass) {
+    try {
+      const api = (window.__driveApi || 'https://www.googleapis.com/drive/v3/files').replace(/\/files$/, '/about');
+      const res = await fetch(`${api}?fields=user(emailAddress)`, { headers: { Authorization: 'Bearer ' + pass } });
+      const email = res.ok ? ((await res.json()).user || {}).emailAddress : '';
+      if (email) localStorage.setItem(ACCOUNT, email);
+    } catch { /* fine: Google just asks which account next time */ }
+  }
+
   // On an iPad or iPhone, Google's picker inside this page needs double taps and its Select button can do nothing, so
   // there Google's own full-page picker is used instead ("onepick"): sign in, pick, and Google sends the browser back
   // to this page with a pass and the file picked. Where PadLink was and its code go along in `state`.
@@ -69,6 +83,7 @@ window.PadLinkPicker = (() => {
         if (r.error) { say(signInProblem(r.error), true); return; }
         token = r.access_token;
         tokenUntil = Date.now() + (Number(r.expires_in) || 3600) * 1000 - 60000;
+        rememberAccount(token);
         show();
       },
       error_callback: (e) => say(e && e.type === 'popup_closed' ? 'Sign-in was closed. Tap the button to try again.'
@@ -87,9 +102,11 @@ window.PadLinkPicker = (() => {
   // A tap is needed: browsers only open Google's sign-in window from one.
   function open() {
     say('');
-    if (ONEPICK) { onePick('consent'); return; }
+    const hint = savedAccount();
+    // (Google's full-page picker always shows its "allow access" step: Google requires prompt=consent for it.)
+    if (ONEPICK) { onePick('consent', hint); return; }
     if (token && Date.now() < tokenUntil) { show(); return; }
-    tokenClient.requestAccessToken({ prompt: '' });
+    tokenClient.requestAccessToken(hint ? { prompt: '', login_hint: hint } : { prompt: '' });
   }
 
   // Signed in with the wrong account (say, a personal one instead of the school's): forget this page's pass and ask
@@ -97,6 +114,7 @@ window.PadLinkPicker = (() => {
   function switchAccount() {
     say('');
     token = null; tokenUntil = 0;
+    forgetAccount();
     if (ONEPICK) { onePick('select_account consent'); return; }
     tokenClient.requestAccessToken({ prompt: 'select_account' });
   }
@@ -124,7 +142,7 @@ window.PadLinkPicker = (() => {
   }
 
   // Google's full-page picker (iPad, iPhone): off to Google, back to this page (finishOnePick).
-  function onePick(prompt) {
+  function onePick(prompt, hint) {
     const q = new URLSearchParams({
       client_id: cfg.clientId,
       scope: SCOPE,
@@ -136,6 +154,7 @@ window.PadLinkPicker = (() => {
       include_granted_scopes: 'false',
       state: new URLSearchParams({ r: back.href, c: code }).toString(),
     });
+    if (hint) q.set('login_hint', hint);
     (window.__pickerGo || ((u) => location.assign(u)))('https://accounts.google.com/o/oauth2/v2/auth?' + q.toString());
   }
 
@@ -152,7 +171,10 @@ window.PadLinkPicker = (() => {
     say('Getting the file’s details…');
     try {
       const api = window.__driveApi || 'https://www.googleapis.com/drive/v3/files';
-      const res = await fetch(`${api}/${encodeURIComponent(id)}?fields=id,name,mimeType&supportsAllDrives=true`, { headers: { Authorization: 'Bearer ' + token } });
+      const [res] = await Promise.all([
+        fetch(`${api}/${encodeURIComponent(id)}?fields=id,name,mimeType&supportsAllDrives=true`, { headers: { Authorization: 'Bearer ' + token } }),
+        rememberAccount(token),
+      ]);
       if (!res.ok) throw new Error('http-' + res.status);
       const f = await res.json();
       send(f.id || id, f.name, f.mimeType);
