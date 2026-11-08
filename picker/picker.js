@@ -82,12 +82,12 @@ window.PadLinkPicker = (() => {
   const BADGE = { pdf: 'PDF', slides: 'SLIDES', docs: 'DOC', sheets: 'SHEET', drawings: 'DRAW', pictures: 'IMG', other: 'FILE' };
   let files = [], filter = 'all';
 
-  // How the files you've used show: grid or list, and sorted A–Z or by most recent. Name A–Z in a grid to start with;
+  // How the files you've used show: grid or list, and sorted A–Z or by most recent. Name A–Z in a list to start with;
   // whatever is chosen is remembered in this browser.
   const VIEW = 'padlink-picker.view', SORT = 'padlink-picker.sort';
   const pref = (k, d, ok) => { try { const v = localStorage.getItem(k); return ok.includes(v) ? v : d; } catch { return d; } };
   const keep = (k, v) => { try { localStorage.setItem(k, v); } catch { /* not kept: fine */ } };
-  let view = pref(VIEW, 'grid', ['grid', 'list']);
+  let view = pref(VIEW, 'list', ['grid', 'list']);
   $('sort').value = pref(SORT, 'name', ['name', 'recent']);
   function setView(v) {
     view = v;
