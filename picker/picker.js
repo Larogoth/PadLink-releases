@@ -82,6 +82,21 @@ window.PadLinkPicker = (() => {
   const BADGE = { pdf: 'PDF', slides: 'SLIDES', docs: 'DOC', sheets: 'SHEET', drawings: 'DRAW', pictures: 'IMG', other: 'FILE' };
   let files = [], filter = 'all';
 
+  // How the files show: grid or list, and sorted A–Z or by most recent. Name A–Z in a grid to start with; whatever is
+  // chosen is remembered in this browser, and Google's own picker (on the PC) opens in the same grid or list.
+  const VIEW = 'padlink-picker.view', SORT = 'padlink-picker.sort';
+  const pref = (k, d, ok) => { try { const v = localStorage.getItem(k); return ok.includes(v) ? v : d; } catch { return d; } };
+  const keep = (k, v) => { try { localStorage.setItem(k, v); } catch { /* not kept: fine */ } };
+  let view = pref(VIEW, 'grid', ['grid', 'list']);
+  $('sort').value = pref(SORT, 'name', ['name', 'recent']);
+  function setView(v) {
+    view = v;
+    keep(VIEW, v);
+    $('viewGrid').setAttribute('aria-pressed', String(v === 'grid'));
+    $('viewList').setAttribute('aria-pressed', String(v === 'list'));
+    renderList();
+  }
+
   // Off to Google and straight back, with no screens when this account already allowed PadLink (prompt=none).
   function quietSignIn(hint) {
     const q = new URLSearchParams({
@@ -178,6 +193,7 @@ window.PadLinkPicker = (() => {
       : `${shown.length} of ${files.length} files`;
     const list = $('files');
     list.textContent = '';
+    list.classList.toggle('grid', view === 'grid');
     for (const f of shown) {
       const b = document.createElement('button');
       b.type = 'button';
@@ -268,7 +284,10 @@ window.PadLinkPicker = (() => {
 
   function show() {
     const P = google.picker;
-    const label = (view, text) => (typeof view.setLabel === 'function' ? view.setLabel(text) : view);
+    // Each tab opens in grid or list, as chosen on this page (grid to start with). Google gives apps no way to choose
+    // its starting sort: that's its own menu inside the picker.
+    const mode = view === 'list' ? P.DocsViewMode.LIST : P.DocsViewMode.GRID;
+    const label = (v, text) => { if (typeof v.setMode === 'function') v.setMode(mode); return typeof v.setLabel === 'function' ? v.setLabel(text) : v; };
     const myDrive = label(new P.DocsView(P.ViewId.DOCS).setParent('root').setIncludeFolders(true).setSelectFolderEnabled(false).setMimeTypes(MIMES), 'My Drive');
     const shared = label(new P.DocsView(P.ViewId.DOCS).setOwnedByMe(false).setIncludeFolders(true).setSelectFolderEnabled(false).setMimeTypes(MIMES), 'Shared with me');
     const drives = label(new P.DocsView(P.ViewId.DOCS).setEnableDrives(true).setIncludeFolders(true).setSelectFolderEnabled(false).setMimeTypes(MIMES), 'Shared drives');
@@ -356,7 +375,11 @@ window.PadLinkPicker = (() => {
   $('open').addEventListener('click', open);
   $('switch').addEventListener('click', switchAccount);
   $('find').addEventListener('input', renderList);
-  $('sort').addEventListener('change', renderList);
+  $('sort').addEventListener('change', () => { keep(SORT, $('sort').value); renderList(); });
+  $('viewGrid').addEventListener('click', () => setView('grid'));
+  $('viewList').addEventListener('click', () => setView('list'));
+  $('viewGrid').setAttribute('aria-pressed', String(view === 'grid'));
+  $('viewList').setAttribute('aria-pressed', String(view === 'list'));
   ready();
   showAccount();
   if (fromGoogle && back && code) { if (args.get('m') === 'list') finishList(); else finishOnePick(); }
