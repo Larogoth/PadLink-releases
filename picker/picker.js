@@ -82,8 +82,8 @@ window.PadLinkPicker = (() => {
   const BADGE = { pdf: 'PDF', slides: 'SLIDES', docs: 'DOC', sheets: 'SHEET', drawings: 'DRAW', pictures: 'IMG', other: 'FILE' };
   let files = [], filter = 'all';
 
-  // How the files show: grid or list, and sorted A–Z or by most recent. Name A–Z in a grid to start with; whatever is
-  // chosen is remembered in this browser, and Google's own picker (on the PC) opens in the same grid or list.
+  // How the files you've used show: grid or list, and sorted A–Z or by most recent. Name A–Z in a grid to start with;
+  // whatever is chosen is remembered in this browser.
   const VIEW = 'padlink-picker.view', SORT = 'padlink-picker.sort';
   const pref = (k, d, ok) => { try { const v = localStorage.getItem(k); return ok.includes(v) ? v : d; } catch { return d; } };
   const keep = (k, v) => { try { localStorage.setItem(k, v); } catch { /* not kept: fine */ } };
@@ -284,10 +284,9 @@ window.PadLinkPicker = (() => {
 
   function show() {
     const P = google.picker;
-    // Each tab opens in grid or list, as chosen on this page (grid to start with). Google gives apps no way to choose
-    // its starting sort: that's its own menu inside the picker.
-    const mode = view === 'list' ? P.DocsViewMode.LIST : P.DocsViewMode.GRID;
-    const label = (v, text) => { if (typeof v.setMode === 'function') v.setMode(mode); return typeof v.setLabel === 'function' ? v.setLabel(text) : v; };
+    // Google's own grid/list switch stays: setting a view (setMode) would lock it and hide the switch, and Google gives
+    // apps no way to choose its starting sort either.
+    const label = (v, text) => (typeof v.setLabel === 'function' ? v.setLabel(text) : v);
     const myDrive = label(new P.DocsView(P.ViewId.DOCS).setParent('root').setIncludeFolders(true).setSelectFolderEnabled(false).setMimeTypes(MIMES), 'My Drive');
     const shared = label(new P.DocsView(P.ViewId.DOCS).setOwnedByMe(false).setIncludeFolders(true).setSelectFolderEnabled(false).setMimeTypes(MIMES), 'Shared with me');
     const drives = label(new P.DocsView(P.ViewId.DOCS).setEnableDrives(true).setIncludeFolders(true).setSelectFolderEnabled(false).setMimeTypes(MIMES), 'Shared drives');
