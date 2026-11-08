@@ -84,7 +84,7 @@ window.PadLinkPicker = (() => {
 
   // How the files you've used show: grid or list, and sorted A–Z or by most recent. Name A–Z in a list to start with;
   // whatever is chosen is remembered in this browser.
-  const VIEW = 'padlink-picker.view', SORT = 'padlink-picker.sort';
+  const VIEW = 'padlink-picker.view2', SORT = 'padlink-picker.sort'; // (view2: a grid remembered from before starts as a list again)
   const pref = (k, d, ok) => { try { const v = localStorage.getItem(k); return ok.includes(v) ? v : d; } catch { return d; } };
   const keep = (k, v) => { try { localStorage.setItem(k, v); } catch { /* not kept: fine */ } };
   let view = pref(VIEW, 'list', ['grid', 'list']);
@@ -284,9 +284,9 @@ window.PadLinkPicker = (() => {
 
   function show() {
     const P = google.picker;
-    // Google's own grid/list switch stays: setting a view (setMode) would lock it and hide the switch, and Google gives
-    // apps no way to choose its starting sort either.
-    const label = (v, text) => (typeof v.setLabel === 'function' ? v.setLabel(text) : v);
+    // Each tab starts as a list (Google's own default is a grid); Google's switch still changes it. Google gives apps
+    // no way to choose its starting sort.
+    const label = (v, text) => { if (typeof v.setMode === 'function') v.setMode(P.DocsViewMode.LIST); return typeof v.setLabel === 'function' ? v.setLabel(text) : v; };
     const myDrive = label(new P.DocsView(P.ViewId.DOCS).setParent('root').setIncludeFolders(true).setSelectFolderEnabled(false).setMimeTypes(MIMES), 'My Drive');
     const shared = label(new P.DocsView(P.ViewId.DOCS).setOwnedByMe(false).setIncludeFolders(true).setSelectFolderEnabled(false).setMimeTypes(MIMES), 'Shared with me');
     const drives = label(new P.DocsView(P.ViewId.DOCS).setEnableDrives(true).setIncludeFolders(true).setSelectFolderEnabled(false).setMimeTypes(MIMES), 'Shared drives');
