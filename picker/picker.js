@@ -293,13 +293,13 @@ window.PadLinkPicker = (() => {
     const recent = label(new P.DocsView(P.ViewId.DOCS).setMimeTypes(MIMES), 'All files');
     // Files picked through PadLink before (Google's own list; Google has no "recently opened" for apps): first, so the
     // ones you use again are right there.
-    const picked = label(new P.View(P.ViewId.RECENTLY_PICKED).setMimeTypes(MIMES), 'Recently picked');
+    const recentlyPicked = label(new P.View(P.ViewId.RECENTLY_PICKED).setMimeTypes(MIMES), 'Recently picked');
     new P.PickerBuilder()
       .setAppId(cfg.appId)
       .setDeveloperKey(cfg.apiKey)
       .setOAuthToken(token)
       .enableFeature(P.Feature.SUPPORT_DRIVES)
-      .addView(picked)
+      .addView(recentlyPicked)
       .addView(myDrive)
       .addView(shared)
       .addView(drives)
